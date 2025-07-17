@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Doodle Dash</title>
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #b2dfdb, #81d4fa);
+            font-family: 'Comic Neue', cursive;
+            margin: 0;
+            padding: 20px;
+            overflow-x: hidden;
+            color: #333;
+        }
+        header {
+            background: #ffeb3b;
+            padding: 25px;
+            border: 4px dashed #333;
+            border-radius: 20px;
+            width: 600px;
+            max-width: 100%;
+            margin: 0 auto 30px;
+            text-align: center;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+            animation: bounce 2s infinite;
+            transition: transform 0.3s ease;
+        }
+        header:hover {
+            transform: scale(1.02);
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        header h1 {
+            font-size: 4em;
+            margin: 0;
+            color: #333;
+            text-shadow: 4px 4px #fff;
+        }
+        header p {
+            font-size: 1.8em;
+            margin: 0;
+            color: #666;
+        }
+        #canvas {
+            width: 400px;
+            height: 400px;
+            border: 4px solid #333;
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 0 25px rgba(255, 107, 192, 0.6);
+            animation: fadeIn 1s ease-in;
+            touch-action: none;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .button-group button {
+            background: linear-gradient(135deg, #f06292, #ec407a);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            margin: 8px;
+            border-radius: 25px;
+            font-size: 1.3em;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.3);
+        }
+        .button-group button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        }
+        .button-group button:active {
+            transform: scale(0.95);
+        }
+        #prediction, #score, #timer, #recent-predictions {
+            background: rgba(255, 235, 59, 0.9);
+            padding: 12px;
+            border: 3px dashed #333;
+            border-radius: 15px;
+            margin: 12px 0;
+            font-size: 1.4em;
+            color: #333;
+            animation: fadeIn 0.5s ease-in;
+        }
+        #recent-predictions ul {
+            list-style: none;
+            padding: 0;
+            margin: 5px 0;
+            font-size: 1.1em;
+        }
+        #recent-predictions li {
+            padding: 3px 0;
+        }
+        #sidebar {
+            background: rgba(255, 235, 59, 0.9);
+            padding: 20px;
+            border: 3px dashed #333;
+            border-radius: 15px;
+            font-size: 1.2em;
+            color: #333;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+        }
+        #sidebar h2 {
+            margin: 0 0 15px;
+            font-size: 1.8em;
+            text-shadow: 2px 2px #fff;
+        }
+        #sidebar ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        #sidebar li {
+            padding: 8px;
+            transition: background 0.2s;
+        }
+        #sidebar li:hover {
+            background: rgba(255, 255, 255, 0.6);
+            cursor: pointer;
+        }
+        #debug {
+            background: rgba(255, 235, 59, 0.7);
+            padding: 8px;
+            border: 2px dashed #333;
+            border-radius: 10px;
+            margin: 10px 0;
+            font-size: 0.9em;
+            color: #666;
+            opacity: 0.8;
+        }
+        @media (max-width: 768px) {
+            #canvas { width: 350px; height: 350px; }
+            header { width: 100%; max-width: 500px; }
+            .button-group button { font-size: 1.1em; padding: 12px 25px; }
+            #sidebar { font-size: 1em; padding: 15px; }
+            #prediction, #recent-predictions { font-size: 1.2em; }
+            header h1 { font-size: 3.2em; }
+            header p { font-size: 1.5em; }
+        }
+        @media (max-width: 480px) {
+            #canvas { width: 280px; height: 280px; }
+            header { width: 100%; max-width: 400px; }
+            header h1 { font-size: 2.5em; }
+            header p { font-size: 1.2em; }
+            .button-group button { font-size: 1em; padding: 10px 20px; }
+        }
+    </style>
+</head>
+<body>
+    <header class="w-full">
+        <h1>AI Doodle Dash!</h1>
+        <p>Draw, Guess, Win!</p>
+    </header>
+    <div class="container mx-auto flex flex-col md:flex-row gap-8">
+        <div class="md:w-3/4 flex flex-col items-center">
+            <div class="button-group flex justify-center">
+                <button id="guess-mode-btn" title="Draw anything and let AI guess!">Let AI Guess</button>
+                <button id="draw-mode-btn" title="Draw the prompted word to score points!">Doodle Challenge</button>
+            </div>
+            <canvas id="canvas" width="400" height="400"></canvas>
+            <div class="button-group flex justify-center">
+                <button id="predict-btn" title="Submit your drawing for AI to guess">Predict</button>
+                <button id="clear-btn" title="Clear the canvas to start over">Clear</button>
+            </div>
+            <div id="prediction">Prediction: Draw anything!</div>
+            <div id="score" class="hidden">Score: 0</div>
+            <div id="timer" class="hidden">Time: --</div>
+            <div id="recent-predictions" class="w-full max-w-[400px]">
+                <strong>Recent Predictions:</strong>
+                <ul id="recent-predictions-list"></ul>
+            </div>
+            <div id="debug">Debug: Initializing...</div>
+        </div>
+        <div class="md:w-1/4">
+            <div id="sidebar">
+                <h2>Guessable Words</h2>
+                <ul>
+                    <li>cat</li>
+                    <li>dog</li>
+                    <li>tree</li>
+                    <li>car</li>
+                    <li>fish</li>
+                    <li>house</li>
+                    <li>flower</li>
+                    <li>airplane</li>
+                    <li>bicycle</li>
+                    <li>smiley face</li>
+                    <li>sun</li>
+                    <li>star</li>
+                    <li>book</li>
+                    <li>clock</li>
+                    <li>cup</li>
+                    <li>eye</li>
+                    <li>hand</li>
+                    <li>pencil</li>
+                    <li>pizza</li>
+                    <li>rainbow</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        console.log('Inline script running');
+        const debugElement = document.getElementById('debug');
+        debugElement.innerText = 'Debug: Inline script started';
+
+        // Initialize canvas
+        const canvas = document.getElementById('canvas');
+        if (!canvas) {
+            console.error('Canvas not found');
+            debugElement.innerText = 'Debug: Canvas not found';
+        } else {
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                console.error('Canvas context not found');
+                debugElement.innerText = 'Debug: Canvas context not found';
+            } else {
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.strokeStyle = '#000';
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.lineWidth = 10; // Single thick pen
+                debugElement.innerText = 'Debug: Canvas initialized';
+            }
+
+            // Drawing variables
+            let drawing = false;
+            let recentPredictions = [];
+
+            // Clear canvas
+            const clearBtn = document.getElementById('clear-btn');
+            clearBtn.addEventListener('click', () => {
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 10;
+                document.getElementById('prediction').innerText = isGameMode ? `Prediction: Draw ${currentWord}!` : 'Prediction: Draw anything!';
+                debugElement.innerText = 'Debug: Canvas cleared';
+            });
+
+            // Get canvas coordinates
+            function getCanvasCoordinates(event) {
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                return {
+                    x: (event.clientX - rect.left) * scaleX,
+                    y: (event.clientY - rect.top) * scaleY
+                };
+            }
+
+            // Canvas drawing events
+            canvas.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                const coords = getCanvasCoordinates(e);
+                console.log('Mouse down at:', coords.x, coords.y);
+                drawing = true;
+                ctx.beginPath();
+                ctx.moveTo(coords.x, coords.y);
+                debugElement.innerText = 'Debug: Drawing started';
+            });
+
+            canvas.addEventListener('mousemove', (e) => {
+                if (drawing) {
+                    e.preventDefault();
+                    const coords = getCanvasCoordinates(e);
+                    console.log('Drawing at:', coords.x, coords.y);
+                    ctx.lineTo(coords.x, coords.y);
+                    ctx.stroke();
+                    debugElement.innerText = 'Debug: Drawing';
+                }
+            });
+
+            canvas.addEventListener('mouseup', () => {
+                console.log('Mouse up');
+                drawing = false;
+                ctx.beginPath();
+                debugElement.innerText = 'Debug: Drawing stopped';
+            });
+
+            canvas.addEventListener('mouseout', () => {
+                console.log('Mouse out');
+                drawing = false;
+                ctx.beginPath();
+                debugElement.innerText = 'Debug: Drawing stopped';
+            });
+
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const coords = getCanvasCoordinates(e.touches[0]);
+                console.log('Touch start at:', coords.x, coords.y);
+                drawing = true;
+                ctx.beginPath();
+                ctx.moveTo(coords.x, coords.y);
+                debugElement.innerText = 'Debug: Touch drawing started';
+            });
+
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (drawing) {
+                    const coords = getCanvasCoordinates(e.touches[0]);
+                    console.log('Touch move at:', coords.x, coords.y);
+                    ctx.lineTo(coords.x, coords.y);
+                    ctx.stroke();
+                    debugElement.innerText = 'Debug: Touch drawing';
+                }
+            });
+
+            canvas.addEventListener('touchend', () => {
+                console.log('Touch end');
+                drawing = false;
+                ctx.beginPath();
+                debugElement.innerText = 'Debug: Touch drawing stopped';
+            });
+
+            // Game mode variables
+            let score = 0;
+            let timeLeft = 0;
+            let timerInterval = null;
+            let currentWord = '';
+            let isGameMode = false;
+
+            // Word list
+            const words = ['cat', 'dog', 'tree', 'car', 'fish', 'house', 'flower', 'airplane',
+                           'bicycle', 'smiley face', 'sun', 'star', 'book', 'clock', 'cup', 'eye',
+                           'hand', 'pencil', 'pizza', 'rainbow'];
+
+            // Update recent predictions
+            function updateRecentPredictions(prediction) {
+                recentPredictions.unshift(prediction);
+                if (recentPredictions.length > 5) recentPredictions.pop();
+                const list = document.getElementById('recent-predictions-list');
+                list.innerHTML = recentPredictions.map(p => `<li>${p}</li>`).join('');
+            }
+
+            // Predict function
+            const predictBtn = document.getElementById('predict-btn');
+            predictBtn.addEventListener('click', () => {
+                console.log('Predicting...');
+                debugElement.innerText = 'Debug: Sending prediction request...';
+                const imageData = canvas.toDataURL('image/png');
+                console.log('Canvas image:', imageData.substring(0, 50));
+                fetch('/predict', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({image: imageData})
+                })
+                .then(res => {
+                    if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+                    return res.json();
+                })
+                .then(data => {
+                    console.log('Prediction received:', data);
+                    if (data.predictions && data.predictions.length > 0) {
+                        // Get top 3 predictions
+                        const predictions = data.predictions[0].probabilities
+                            ? data.predictions[0].probabilities
+                            : data.categories.map((cat, i) => ({
+                                  class: cat,
+                                  probability: data.predictions[0].probabilities ? data.predictions[0].probabilities[i] : 0
+                              }));
+                        const top3 = predictions
+                            .map((p, i) => ({ class: data.categories[i], probability: p.probability || data.predictions[0].probability }))
+                            .sort((a, b) => b.probability - a.probability)
+                            .slice(0, 3);
+                        const output = top3.map(p => `${p.class} (${(p.probability * 100).toFixed(2)}%)`).join(', ');
+                        document.getElementById('prediction').innerText = `Prediction: ${output}`;
+                        updateRecentPredictions(output);
+                        
+                        // Confetti and sound for high-confidence predictions in Guess mode
+                        if (!isGameMode && top3[0].probability > 0.8) {
+                            confetti({
+                                particleCount: 150,
+                                spread: 90,
+                                colors: ['#ffeb3b', '#f06292', '#81d4fa'],
+                                origin: { y: 0.6 }
+                            });
+                            new Howl({ src: ['https://www.soundjay.com/buttons/beep-01a.mp3'] }).play();
+                        }
+
+                        // Auto-clear canvas in Guess mode
+                        if (!isGameMode) {
+                            ctx.fillStyle = '#fff';
+                            ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            ctx.strokeStyle = '#000';
+                            ctx.lineWidth = 10;
+                        }
+
+                        // Doodle Challenge logic
+                        if (isGameMode && currentWord && top3[0].class.toLowerCase() === currentWord.toLowerCase()) {
+                            score++;
+                            document.getElementById('score').innerText = `Score: ${score}`;
+                            confetti({
+                                particleCount: 150,
+                                spread: 90,
+                                colors: ['#ffeb3b', '#f06292', '#81d4fa'],
+                                origin: { y: 0.6 }
+                            });
+                            new Howl({ src: ['https://www.soundjay.com/buttons/beep-01a.mp3'] }).play();
+                            currentWord = words[Math.floor(Math.random() * 20)];
+                            document.getElementById('prediction').innerText = `Prediction: Draw ${currentWord}!`;
+                            ctx.fillStyle = '#fff';
+                            ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            ctx.strokeStyle = '#000';
+                            ctx.lineWidth = 10;
+                        }
+                    }
+                    debugElement.innerText = 'Debug: Prediction successful';
+                })
+                .catch(err => {
+                    console.error('Predict fetch error:', err);
+                    document.getElementById('prediction').innerText = 'Error: Is the server running?';
+                    debugElement.innerText = 'Debug: Prediction failed - ' + err.message;
+                });
+            });
+
+            // Guess mode
+            const guessModeBtn = document.getElementById('guess-mode-btn');
+            guessModeBtn.addEventListener('click', () => {
+                console.log('Starting Guess Mode');
+                isGameMode = false;
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 10;
+                currentWord = '';
+                document.getElementById('prediction').innerText = 'Prediction: Draw anything!';
+                if (timerInterval) clearInterval(timerInterval);
+                document.getElementById('timer').classList.add('hidden');
+                document.getElementById('score').classList.add('hidden');
+                score = 0;
+                debugElement.innerText = 'Debug: Guess mode started';
+            });
+
+            // Draw mode with countdown
+            const drawModeBtn = document.getElementById('draw-mode-btn');
+            drawModeBtn.addEventListener('click', () => {
+                console.log('Starting Draw Mode');
+                isGameMode = true;
+                score = 0;
+                document.getElementById('score').innerText = `Score: ${score}`;
+                document.getElementById('score').classList.remove('hidden');
+                document.getElementById('timer').classList.remove('hidden');
+                
+                // Start countdown
+                let countdown = 3;
+                document.getElementById('prediction').innerText = `Starting in ${countdown}...`;
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 10;
+                if (timerInterval) clearInterval(timerInterval);
+                
+                const countdownInterval = setInterval(() => {
+                    countdown--;
+                    if (countdown > 0) {
+                        document.getElementById('prediction').innerText = `Starting in ${countdown}...`;
+                    } else {
+                        clearInterval(countdownInterval);
+                        currentWord = words[Math.floor(Math.random() * 20)];
+                        document.getElementById('prediction').innerText = `Prediction: Draw ${currentWord}!`;
+                        timeLeft = 30;
+                        document.getElementById('timer').innerText = `Time: ${timeLeft}s`;
+                        timerInterval = setInterval(() => {
+                            timeLeft--;
+                            document.getElementById('timer').innerText = `Time: ${timeLeft}s`;
+                            if (timeLeft <= 0) {
+                                clearInterval(timerInterval);
+                                document.getElementById('prediction').innerText = `Challenge Over! Score: ${score}`;
+                                document.getElementById('timer').classList.add('hidden');
+                                document.getElementById('score').classList.add('hidden');
+                                debugElement.innerText = 'Debug: Draw mode ended';
+                            }
+                        }, 1000);
+                    }
+                }, 1000);
+                debugElement.innerText = 'Debug: Draw mode countdown started';
+            });
+
+            // Initialize and start in Guess mode
+            guessModeBtn.click();
+            debugElement.innerText = 'Debug: Initialization complete';
+        }
+    </script>
+</body>
+</html>
