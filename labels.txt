@@ -1,0 +1,20 @@
+cat 
+dog 
+tree 
+car 
+fish 
+house 
+flower 
+airplane 
+bicycle 
+smiley face 
+sun 
+star 
+book 
+clock 
+cup 
+eye 
+hand 
+pencil 
+pizza 
+rainbow
